@@ -21,10 +21,8 @@
 
 ## 效果
 
-<!-- 截图 1：体检通过 -->
-![体检](docs/screenshots/check.png)
-<!-- 截图 2：对话效果 -->
-![对话](docs/screenshots/chat.png)
+<!-- 运行效果：体检 + 对话 -->
+![运行效果：环境体检 + 对话](docs/screenshots/check.png)
 
 ```
 ===== 环境体检 =====
