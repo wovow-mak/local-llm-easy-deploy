@@ -1,0 +1,17 @@
+# 模型文件太大，不要提交（1GB+）
+models/*.gguf
+models/*.bin
+
+# 个人配置
+config.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 个人学习材料（不公开）
+学习计划-对齐文档.md
+blog/
+lesson1/
