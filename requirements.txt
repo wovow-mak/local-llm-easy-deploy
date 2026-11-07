@@ -1,3 +1,12 @@
+# 版本清单（已验证：Python 3.10 / 3.11 / 3.12，Windows）
+#
+# 关键：llama-cpp-python 在 PyPI 上只发布源码包（sdist），
+# 直接 pip install 会触发本地编译（要 CMake + MSVC，新手基本必败）。
+# 所以这里指定官方预编译源，pip 会自动优先选 wheel 而不是源码包。
+--extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu121
+
 llama-cpp-python==0.2.90
+
+# llama.dll 依赖这两个包提供的 cudart64_12.dll / cublas64_12.dll / cublasLt64_12.dll
 nvidia-cuda-runtime-cu12==12.1.105
 nvidia-cublas-cu12==12.1.3.1

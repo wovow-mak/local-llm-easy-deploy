@@ -30,6 +30,8 @@
   [OK]   显卡显存 8188 MiB（约 7 GB）
          推荐：Qwen2.5-7B Q4 / 1.5B Q4，上下文 8192
   [OK]   llama-cpp-python 0.2.90
+  [OK]   CUDA 运行库目录 2 个（已自动注入 DLL 搜索路径）
+  [OK]   GPU 加速可用
   [OK]   模型文件 qwen2.5-1.5b-instruct-q4_k_m.gguf（1066 MB）
 ====================
 ```
@@ -38,18 +40,28 @@
 
 ### 1. 装依赖
 
+**强烈建议用虚拟环境**（不污染系统 Python，出问题删掉 `.venv` 重来即可）：
+
 ```bash
+python -m venv .venv
+.venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-如果 `import llama_cpp` 报 `Could not find module 'llama.dll'`，补上 CUDA 运行库：
+> ⚠️ **别用 `pip install llama-cpp-python` 裸装**——PyPI 上这个包只发布源码包（sdist），
+> pip 会尝试本地编译，需要 CMake + MSVC 构建工具，新手几乎必失败。
+> `requirements.txt` 里已经指定了官方预编译源，用 `-r` 装才会直接拿到 wheel。
+>
+> 国内网络慢的话，给 pip 加清华镜像（预编译 wheel 源不支持镜像加速，慢就只能等）：
+> `pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple`
 
-```bash
-pip install nvidia-cuda-runtime-cu12 nvidia-cublas-cu12
-```
+**关于 `llama.dll` 缺依赖的问题**：`import llama_cpp` 偶尔会报
+`Could not find module 'llama.dll' (or one of its dependencies)`。
+原因是它依赖 CUDA 运行库（`cudart64_12.dll` 等），而这些 DLL 装在
+`site-packages/nvidia/*/bin` 下，不在系统 PATH 里。
 
-然后把 `site-packages/nvidia/*/bin/` 下的 `cudart64_12.dll`、`cublas64_12.dll`、`cublasLt64_12.dll`
-复制到 `site-packages/llama_cpp/lib/` 目录。
+**本项目的 `deploy.py` 会在启动时自动把这两个目录注入 DLL 搜索路径**，你不用手工复制任何文件。
+（手工复制 DLL 的做法在自己机器上能跑，换台机器就失效，所以没有采用。）
 
 ### 2. 下载模型（1GB，走国内镜像）
 
@@ -66,6 +78,15 @@ python deploy.py
 ```
 
 Windows 用户也可以直接双击 `deploy.bat`。
+
+## 兼容性验证
+
+同一个脚本在两套完全隔离的环境里都跑通了（这才叫"能给别人用"）：
+
+| 环境 | 结果 |
+|---|---|
+| 系统 Python 3.12 + 全局安装 | ✅ 体检通过 · 105 tok/s |
+| **全新 venv（`python -m venv .venv`，零手工配置）** | ✅ 体检通过 · 无需复制任何 DLL |
 
 ## 参数
 
@@ -134,14 +155,20 @@ Python 版本和 wheel 标签不一致。`cp312` 表示给 Python 3.12 的包。
 </details>
 
 <details>
-<summary><b>3. import 报 <code>Could not find module 'llama.dll'</code></b></summary>
+<summary><b>3. import 报 <code>Could not find module 'llama.dll' (or one of its dependencies)</code></b></summary>
 
 **显卡驱动 ≠ CUDA 运行库**。装驱动只能让系统识别显卡，程序要用 GPU 还得有 cudart/cublas。
 
 ```bash
-pip install nvidia-cuda-runtime-cu12 nvidia-cublas-cu12
+pip install nvidia-cuda-runtime-cu12==12.1.105 nvidia-cublas-cu12==12.1.3.1
 ```
-再把 `nvidia/*/bin/` 下的三个 DLL 复制到 `llama_cpp/lib/`。
+
+装完**直接重新运行 `python deploy.py` 就行**——脚本会自动把 `site-packages/nvidia/*/bin`
+注入 DLL 搜索路径，不需要手工复制文件。
+
+> 为什么不用"复制 DLL 到 `llama_cpp/lib`"这个网上常见的办法：它在你自己机器上有效，
+> 但换个虚拟环境或换台电脑就又坏了，而且 pip 升级包之后会被清掉。
+> 代码自适应比手工修补更可靠。
 </details>
 
 <details>
@@ -165,6 +192,18 @@ pip install nvidia-cuda-runtime-cu12 nvidia-cublas-cu12
 自己写脚本时也照这个写法。
 </details>
 
+<details>
+<summary><b>7. 参数没改，怎么突然变慢了 5 倍</b></summary>
+
+先看 `config.json`。命令行传的参数会被记住，下次自动生效——如果之前试过 `--cpu`，
+之后每次启动可能都在跑 CPU 模式。
+
+v0.9 之后已修：**`--cpu` 这类临时开关不再写入配置**，只有 `--ctx` / `--gpu-layers` / `--model`
+这种"你想长期改变默认值"的参数才会被记住，并且会打印 `已记住设置：...` 告诉你。
+
+排查口诀：**程序变慢 → 先看配置文件里存了什么，再看命令行传了什么。**
+</details>
+
 ## 目录结构
 
 ```
@@ -176,6 +215,11 @@ local-llm-easy-deploy/
 ├── models/              # 放 .gguf 模型文件（不提交到 git）
 └── docs/screenshots/    # README 用的截图
 ```
+
+## 更新日志
+
+- **v0.9.1** — 自动注入 CUDA 运行库路径（不再需要手工复制 DLL）；`--cpu` 等临时开关不再写入配置；`--check` 增加 GPU 加速可用性检测；`requirements.txt` 指定预编译源，避免误触发源码编译
+- **v0.9** — 首个版本：环境体检、显存推荐、友好报错、配置持久化
 
 ## 后续计划
 

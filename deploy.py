@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-deploy.py v0.9 —— 一键部署脚本（新手可用版）
+deploy.py v0.9.1 —— 一键部署脚本（新手可用版）
 
 用法：
   python deploy.py                  # 自动检测显卡，推荐配置，直接开始对话
@@ -16,14 +16,45 @@ deploy.py v0.9 —— 一键部署脚本（新手可用版）
   4. 先体检再运行，别等跑到一半才报错
 """
 import argparse
+import glob
 import json
 import os
 import subprocess
 import sys
+import sysconfig
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 MODELS_DIR = os.path.join(ROOT, "models")
 CONFIG_PATH = os.path.join(ROOT, "config.json")
+
+_cuda_dll_dirs = []
+
+
+def prepare_cuda_dlls():
+    """把 pip 装的 CUDA 运行库目录注入 DLL 搜索路径。
+
+    背景：llama.dll 依赖 cudart64_12.dll / cublas64_12.dll / cublasLt64_12.dll。
+    这几个 DLL 由 pip 包 nvidia-cuda-runtime-cu12、nvidia-cublas-cu12 提供，
+    装在 site-packages/nvidia/*/bin 下——**不在系统 PATH 里**，
+    所以 import llama_cpp 会报 "Could not find module ... (or one of its dependencies)"。
+
+    错误示范：手工把 DLL 复制到 site-packages/llama_cpp/lib/。
+             在自己机器上能跑，换台机器 / 换个虚拟环境就失效，别人拿你的项目还是跑不起来。
+    正确做法：启动时把目录加进 PATH，代码自适应，在哪都能跑。
+    """
+    if _cuda_dll_dirs:
+        return _cuda_dll_dirs
+    paths = sysconfig.get_paths()
+    found = []
+    for key in ("purelib", "platlib"):
+        root = paths.get(key)
+        if root:
+            found += glob.glob(os.path.join(root, "nvidia", "*", "bin"))
+    found = sorted(set(found))
+    if found:
+        os.environ["PATH"] = os.pathsep.join(found) + os.pathsep + os.environ.get("PATH", "")
+        _cuda_dll_dirs.extend(found)
+    return found
 
 # 显存 -> (推荐模型, 推荐上下文) 的对照表
 VRAM_TABLE = [
@@ -68,23 +99,33 @@ def check_python():
 
 
 def check_llama_cpp():
+    dlls = prepare_cuda_dlls()
     try:
         import llama_cpp
         ok(f"llama-cpp-python {llama_cpp.__version__}")
+        if dlls:
+            ok(f"CUDA 运行库目录 {len(dlls)} 个（已自动注入 DLL 搜索路径）")
+        try:
+            if llama_cpp.llama_supports_gpu_offload():
+                ok("GPU 加速可用")
+            else:
+                warn("这个构建不带 GPU 加速（纯 CPU 版），速度会慢 5 倍以上")
+        except Exception:
+            pass
         return True
     except ModuleNotFoundError:
         return fail(
             "没装 llama-cpp-python",
-            'pip install llama-cpp-python --prefer-binary '
-            '--extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu121',
+            "pip install llama-cpp-python==0.2.90 --prefer-binary "
+            "--extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu121",
         )
     except Exception as e:
         # 最常见：llama.dll 缺依赖（缺 CUDA 运行库）
         return fail(
             f"库装上了但加载失败：{type(e).__name__}",
-            "大概率缺 CUDA 运行库：pip install nvidia-cuda-runtime-cu12 nvidia-cublas-cu12\n"
-            "         再把 nvidia/*/bin 里的 cudart64_12.dll、cublas64_12.dll、cublasLt64_12.dll\n"
-            "         复制到 site-packages/llama_cpp/lib/",
+            "缺 CUDA 运行库 → pip install nvidia-cuda-runtime-cu12==12.1.105 "
+            "nvidia-cublas-cu12==12.1.3.1\n"
+            "         装完重新运行本脚本即可（它会自动把 DLL 目录加进搜索路径）",
         )
 
 
@@ -192,7 +233,7 @@ def chat(llm):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="一键部署本地大模型 v0.9")
+    parser = argparse.ArgumentParser(description="一键部署本地大模型 v0.9.1")
     parser.add_argument("--model", help="模型文件路径")
     parser.add_argument("--ctx", type=int, help="上下文长度，如 4096/8192")
     parser.add_argument("--gpu-layers", type=int, help="放进 GPU 的层数，-1 为全部")
@@ -216,6 +257,13 @@ def main():
         print("环境一切正常，可以直接运行：python deploy.py\n")
         return
 
+    # 说明当前模式是怎么来的，避免"我明明没改，怎么变慢了"
+    if args.cpu:
+        print("本次强制 CPU 模式（临时生效，不写入配置）\n")
+    elif cfg.get("n_gpu_layers") == 0:
+        warn("配置文件里记的是纯 CPU 模式（n_gpu_layers=0）→ 想要显卡加速：--gpu-layers -1")
+        print()
+
     # 显存够不够的提醒
     vram = detect_vram()
     if vram and n_gpu_layers != 0:
@@ -226,6 +274,7 @@ def main():
 
     print(f"加载模型（ctx={n_ctx}, gpu_layers={n_gpu_layers}）...")
     try:
+        prepare_cuda_dlls()
         from llama_cpp import Llama
         llm = Llama(model_path=model_path, n_ctx=n_ctx,
                     n_gpu_layers=n_gpu_layers, verbose=False)
@@ -234,9 +283,21 @@ def main():
              "显存不够就降低 --ctx 或改用 --cpu；其他错误看上面的体检结果")
         sys.exit(1)
 
-    cfg.update({"model": os.path.basename(model_path), "n_ctx": n_ctx,
-                "n_gpu_layers": n_gpu_layers})
-    save_config(cfg)
+    # 只把**命令行显式传入**的参数写进 config.json。
+    # 踩过的坑：v0.9 早期版本把所有参数都落盘，跑一次 --cpu 之后，
+    # 之后每次常规启动都悄悄变成 CPU 模式（慢 5 倍），排查了半天才发现是配置文件被改了。
+    # 原则：临时开关不落盘，用户说了要记住才记住。
+    changed = {}
+    if args.ctx is not None:
+        changed["n_ctx"] = n_ctx
+    if args.gpu_layers is not None:
+        changed["n_gpu_layers"] = n_gpu_layers
+    if args.model:
+        changed["model"] = os.path.basename(model_path)
+    if changed:
+        cfg.update(changed)
+        save_config(cfg)
+        print(f"已记住设置：{changed}（下次启动自动生效）")
     print("加载完成！\n")
     chat(llm)
 
