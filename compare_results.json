@@ -1,0 +1,74 @@
+{
+  "llama": {
+    "name": "Llama-3.2-1B-Instruct",
+    "family": "Llama（Meta）",
+    "runs": {
+      "自我介绍": {
+        "load_s": 0.8,
+        "tokens": 24,
+        "tok_per_s": 71.9,
+        "text": "我是一名强大的计算机系统，能够理解和回答人类问题，具有广泛的知识和技能。"
+      },
+      "写代码": {
+        "load_s": 0.67,
+        "tokens": 108,
+        "tok_per_s": 176.2,
+        "text": "```python\ndef bubble_sort(arr):\n    n = len(arr)\n    for i in range(n):\n        for j in range(0, n - i - 1):\n            if arr[j] > arr[j + 1]:\n                arr[j], arr[j + 1] = arr[j + 1], arr[j]\n    return arr\n\n# 生成一个随机数组\narr = [i for i in range(10)]\nprint(\"原始数组:\", arr)\nprint(\"排序结果:\", bubble_sort(arr))\n```"
+      },
+      "推理": {
+        "load_s": 0.66,
+        "tokens": 10,
+        "tok_per_s": 149.1,
+        "text": "9.11 大于 9.9。"
+      }
+    }
+  },
+  "qwen": {
+    "name": "Qwen2.5-1.5B-Instruct",
+    "family": "Qwen（阿里）",
+    "runs": {
+      "自我介绍": {
+        "load_s": 0.65,
+        "tokens": 20,
+        "tok_per_s": 68.2,
+        "text": "我是Qwen，由阿里云开发的超大规模语言模型，能够进行多轮对话。"
+      },
+      "写代码": {
+        "load_s": 0.58,
+        "tokens": 108,
+        "tok_per_s": 135.0,
+        "text": "```python\ndef bubble_sort(arr):\n    n = len(arr)\n    for i in range(n):\n        for j in range(0, n-i-1):\n            if arr[j] > arr[j+1]:\n                arr[j], arr[j+1] = arr[j+1], arr[j]\n    return arr\n\n# 测试\narr = [64, 34, 25, 12, 22, 11, 90]\nprint(bubble_sort(arr))\n```"
+      },
+      "推理": {
+        "load_s": 0.58,
+        "tokens": 12,
+        "tok_per_s": 117.3,
+        "text": "9.9 大于 9.11。"
+      }
+    }
+  },
+  "internlm": {
+    "name": "InternLM2.5-1.8B-Chat",
+    "family": "InternLM（上海 AI 实验室）",
+    "runs": {
+      "自我介绍": {
+        "load_s": 0.53,
+        "tokens": 24,
+        "tok_per_s": 105.8,
+        "text": "我是一位能够理解和生成自然语言的人工智能助手，旨在提供帮助、解答问题、提供信息和促进知识共享。"
+      },
+      "写代码": {
+        "load_s": 0.48,
+        "tokens": 150,
+        "tok_per_s": 151.3,
+        "text": "好的，以下是 Python 代码实现冒泡排序：\n\n```python\ndef bubble_sort(arr):\n    n = len(arr)\n    # 遍历所有数组元素\n    for i in range(n):\n        # 每次遍历将最大的元素移到末尾\n        for j in range(0, n-i-1):\n            if arr[j] > arr[j+1]:\n                arr[j], arr[j+1] = arr[j+1], arr[j]\n    return arr\n```\n\n使用方法：\n\n```python\narr = [64, 34, 25, 12, 22, 11, 90]\nsorted_arr = bubble_sort(arr)\nprint(sorted_arr)\n```\n\n输出结果："
+      },
+      "推理": {
+        "load_s": 0.47,
+        "tokens": 150,
+        "tok_per_s": 152.8,
+        "text": "9.9 比 9.11 大。\n\n9.9 是 9.11 的近似值，因为 9.9 比 9.11 稍大一些，但两者在数值上是相等的。\n\n在数学和科学中，9.9 和 9.11 通常被视为相等，但在某些情况下，它们可能被视为不同的值，具体取决于上下文。例如，在比较两个数字时，如果它们是精确值，那么它们就是相等的。但如果它们是近似值，那么它们可能被视为不同的值。\n\n因此，9.9 和 9.11 在数值上是相等的，但在某些情况下，它们可能被视为"
+      }
+    }
+  }
+}

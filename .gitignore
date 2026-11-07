@@ -11,6 +11,10 @@ __pycache__/
 .venv/
 venv/
 
+# 手动下载的 wheel（体积大，且能从源装回）
+.wheels/
+*.whl
+
 # 个人学习材料（不公开）
 学习计划-对齐文档.md
 blog/
